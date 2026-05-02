@@ -147,13 +147,21 @@ jobs:
         run: pnpm run build:cloudflare
 
       - name: Run D1 Database Migrations
-        if: ${{ secrets.NEXT_PUBLIC_STORAGE_TYPE == 'd1' }}
         run: |
+          STORAGE_TYPE="${{ secrets.NEXT_PUBLIC_STORAGE_TYPE }}"
+
+          if [ "$STORAGE_TYPE" != "d1" ]; then
+            echo "Storage type is not d1 (current: $STORAGE_TYPE), skipping D1 migrations"
+            exit 0
+          fi
+
           if [ -z "${{ secrets.D1_DATABASE_ID }}" ]; then
             echo "D1_DATABASE_ID not set, skipping migrations"
             exit 0
           fi
+
           echo "Running D1 database migrations..."
+
           for migration_file in ./migrations/*.sql; do
             if [ -f "$migration_file" ]; then
               echo "Executing: $(basename $migration_file)"
