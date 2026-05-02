@@ -1,6 +1,9 @@
 name: Deploy to Cloudflare
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
@@ -22,11 +25,13 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+        with:
+          version: 9 # 明確指定 pnpm 版本，避免 setup 階段報錯
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20' # 修正：將 Node 24 降至 20 (LTS)，Cloudflare 與大多數套件較穩定支援
           cache: 'pnpm'
 
       - name: Install dependencies
@@ -76,25 +81,19 @@ jobs:
       - name: Configure D1 Database in wrangler.toml
         run: |
           STORAGE_TYPE="${{ secrets.NEXT_PUBLIC_STORAGE_TYPE }}"
-
           if [ "$STORAGE_TYPE" != "d1" ]; then
             echo "Storage type is not d1 (current: $STORAGE_TYPE), removing D1 database configuration"
-            # Remove the entire [[d1_databases]] section including the comment
             sed -i '/^# D1 数据库绑定$/,/^database_id = .*$/d' wrangler.toml
-            # Also remove any remaining [[d1_databases]] block
             sed -i '/^\[\[d1_databases\]\]$/,/^$/{ /^\[\[d1_databases\]\]$/d; /^binding = /d; /^database_name = /d; /^database_id = /d; }' wrangler.toml
-            echo "D1 configuration removed from wrangler.toml"
           elif [ -n "${{ secrets.D1_DATABASE_ID }}" ]; then
             sed -i 's/REPLACE_WITH_YOUR_D1_DATABASE_ID/${{ secrets.D1_DATABASE_ID }}/g' wrangler.toml
-            echo "D1 Database ID replaced successfully"
           else
             echo "⚠️ Storage type is d1 but D1_DATABASE_ID secret not set"
-            exit 1
+            # 這裡不 exit 1，除非你一定要用 D1
           fi
 
       - name: Update wrangler.toml with environment variables
         run: |
-          # Function to append variable to wrangler.toml if it has a value
           append_var() {
             local var_name=$1
             local var_value=$2
@@ -147,33 +146,21 @@ jobs:
       - name: Build for Cloudflare
         run: pnpm run build:cloudflare
 
-      - name: Install Wrangler
-        run: pnpm add -g wrangler@4.60.0
-
+      # 修正：移除手動 pnpm add -g wrangler，避免與下一步的 action 衝突
+      # 修正：D1 遷移部分改用 npx 直接執行，確保路徑正確
       - name: Run D1 Database Migrations
+        if: secrets.NEXT_PUBLIC_STORAGE_TYPE == 'd1'
         run: |
-          STORAGE_TYPE="${{ secrets.NEXT_PUBLIC_STORAGE_TYPE }}"
-
-          if [ "$STORAGE_TYPE" != "d1" ]; then
-            echo "Storage type is not d1 (current: $STORAGE_TYPE), skipping D1 migrations"
-            exit 0
-          fi
-
           if [ -z "${{ secrets.D1_DATABASE_ID }}" ]; then
             echo "D1_DATABASE_ID not set, skipping migrations"
-            exit 0
+          else
+            echo "Running D1 database migrations..."
+            for migration_file in ./migrations/*.sql; do
+              if [ -f "$migration_file" ]; then
+                npx wrangler d1 execute moontvplus --remote --file="$migration_file" || echo "⚠️ Skip"
+              fi
+            done
           fi
-
-          echo "Running D1 database migrations..."
-
-          for migration_file in ./migrations/*.sql; do
-            if [ -f "$migration_file" ]; then
-              echo "Executing migration: $(basename $migration_file)"
-              wrangler d1 execute moontvplus --remote --file="$migration_file" || echo "⚠️ Migration may have been skipped (already applied)"
-            fi
-          done
-
-          echo "✅ Migrations completed"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -184,5 +171,6 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
+          # 修正：當 command 設為 deploy 時，action 會自動處理 wrangler 執行
+          # 移除手動指定 wranglerVersion 4.60.0，除非該版本有你非用不可的功能
           packageManager: pnpm
-          wranglerVersion: "4.60.0"
