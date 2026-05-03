@@ -40,6 +40,9 @@ export async function generateMetadata(): Promise<Metadata> {
     title: siteName,
     description: '影视聚合',
     manifest: '/manifest.json',
+    verification: {
+      google: 'b2-DMSAWS0BOS5MG28HLUJjdp4FzIeHD5Rco_i_D8KI'
+    },
   };
 }
 
