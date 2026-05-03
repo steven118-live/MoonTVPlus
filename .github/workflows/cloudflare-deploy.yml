@@ -29,7 +29,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20' # 降級至穩定版 20，避免 Node 24 可能產生的相容性問題
+          node-version: '24' # 降級至穩定版 20，避免 Node 24 可能產生的相容性問題
           cache: 'pnpm'
 
       - name: Install dependencies
