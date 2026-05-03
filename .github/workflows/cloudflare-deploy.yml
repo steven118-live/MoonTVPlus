@@ -183,6 +183,8 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          vars: |
+            DISABLE_PWA=true
           command: deploy
           packageManager: pnpm
           wranglerVersion: "4.60.0"
