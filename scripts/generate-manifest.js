@@ -48,10 +48,9 @@ const manifestTemplate = {
   ],
 };
 
-if (process.env.DISABLE_PWA === 'true') {
-  manifestTemplate.display = 'browser'; // ✅ 不觸發安裝提示
-  delete manifestTemplate.icons;        // ✅ 移除安裝圖示
-}
+manifestTemplate.display = 'browser'; // ✅ 不觸發安裝提示
+delete manifestTemplate.icons;        // ✅ 移除安裝圖示
+
 try {
   // 确保 public 目录存在
   if (!fs.existsSync(publicDir)) {
